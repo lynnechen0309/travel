@@ -1,0 +1,1103 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Pack & Go - 旅遊打包清單</title>
+
+    <!-- iOS & Web App Icons Configuration -->
+    <link rel="icon" href="123.jpg">
+    <link rel="apple-touch-icon" href="123.jpg">
+    
+    <!-- Mobile Web App Capability -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Pack & Go">
+    
+    <!-- Babel for JSX (Updated version for better module support) -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Custom Config for Tailwind -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', 'sans-serif'],
+                    },
+                    animation: {
+                        'in': 'fadeIn 0.2s ease-out',
+                        'zoom': 'zoomIn 0.2s ease-out',
+                    },
+                    keyframes: {
+                        fadeIn: {
+                            '0%': { opacity: '0' },
+                            '100%': { opacity: '1' },
+                        },
+                        zoomIn: {
+                            '0%': { transform: 'scale(0.95)', opacity: '0' },
+                            '100%': { transform: 'scale(1)', opacity: '1' },
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <style>
+        .animate-in.fade-in { animation: fadeIn 0.2s ease-out forwards; }
+        .animate-in.zoom-in { animation: zoomIn 0.2s ease-out forwards; }
+        
+        /* Smooth scrolling */
+        html { scroll-behavior: smooth; }
+        
+        /* Custom scrollbar */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 20px; }
+        ::-webkit-scrollbar-thumb:hover { background-color: #94a3b8; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <!-- 
+      使用 data-type="module" 讓 Babel 處理 ES Modules import 
+    -->
+    <script type="text/babel" data-type="module">
+        import React, { useState, useEffect } from 'https://esm.sh/react@18.2.0';
+        import { createRoot } from 'https://esm.sh/react-dom@18.2.0/client';
+        
+        // Firebase Imports (Using official Google CDN for Modules)
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
+        import { getFirestore, collection, doc, setDoc, getDocs, deleteDoc, getDoc } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
+        import { getAuth, signInAnonymously, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
+
+        // 從 esm.sh 引入 lucide-react
+        import { 
+            Check, Plus, Trash2, Plane, RefreshCw, RotateCcw, Luggage,
+            X, Edit2, Save, AlertTriangle, Pencil, ArrowRight, 
+            ChevronDown, ChevronRight, ListTodo, FileText, Shirt, 
+            Glasses, Footprints, Zap, Sparkles, Droplets, Coffee, 
+            Pill, Map, Cloud, Upload, Download, Loader2, Info
+        } from 'https://esm.sh/lucide-react@0.263.1';
+
+        // --- Firebase Configuration ---
+        const firebaseConfig = {
+            apiKey: "AIzaSyAJ_b9BiX1zT7WFu8f08uoKxeV8vgDUHz4",
+            authDomain: "fuktrip.firebaseapp.com",
+            projectId: "fuktrip",
+            storageBucket: "fuktrip.firebasestorage.app",
+            messagingSenderId: "663462561018",
+            appId: "1:663462561018:web:d0c9f00c9fed0253a2b543",
+            measurementId: "G-KME94X3EKH"
+        };
+
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const auth = getAuth(app); // Initialize Auth
+        const COLLECTION_NAME = "packing_lists";
+
+        // --- Icon Mapping ---
+        const CATEGORY_ICONS = {
+            'docs': FileText,
+            'clothes': Shirt,
+            'accessories': Glasses,
+            'shoes': Footprints,
+            'electronics': Zap,
+            'toiletries': Sparkles,
+            'skincare': Droplets,
+            'daily': Coffee,
+            'medicine': Pill
+        };
+
+        // --- 預設資料 (已修改：預設皆為折疊狀態 isCollapsed: true) ---
+        const DEFAULT_DATA = [
+            {
+                id: 'docs',
+                title: '證件票券',
+                isCollapsed: true,
+                items: [
+                { id: 'd1', name: '護照', checked: false },
+                { id: 'd2', name: '簽證', checked: false },
+                { id: 'd3', name: '信用卡', checked: false },
+                { id: 'd4', name: '國際駕照/台灣駕照', checked: false },
+                { id: 'd5', name: '機票證明', checked: false },
+                { id: 'd6', name: '外幣/台幣/旅支', checked: false },
+                { id: 'd7', name: '2吋照片', checked: false },
+                { id: 'd8', name: '筆', checked: false },
+                ]
+            },
+            {
+                id: 'clothes',
+                title: '衣物穿搭',
+                isCollapsed: true,
+                items: [
+                { id: 'c1', name: '內衣褲', checked: false },
+                { id: 'c2', name: '睡衣', checked: false },
+                { id: 'c3', name: '襪子', checked: false },
+                { id: 'c4', name: '外套', checked: false },
+                { id: 'c5', name: '外出服', checked: false },
+                ]
+            },
+            {
+                id: 'accessories',
+                title: '時尚配件',
+                isCollapsed: true,
+                items: [
+                { id: 'a1', name: '太陽眼鏡', checked: false },
+                { id: 'a2', name: '帽子', checked: false },
+                { id: 'a3', name: '髮飾', checked: false },
+                { id: 'a4', name: '飾品', checked: false },
+                { id: 'a5', name: '泳衣', checked: false },
+                { id: 'a6', name: '圍巾/手套', checked: false },
+                ]
+            },
+            {
+                id: 'shoes',
+                title: '鞋履',
+                isCollapsed: true,
+                items: [
+                { id: 's1', name: '運動鞋', checked: false },
+                { id: 's2', name: '休閒鞋', checked: false },
+                { id: 's3', name: '拖鞋', checked: false },
+                { id: 's4', name: '靴子', checked: false },
+                ]
+            },
+            {
+                id: 'electronics',
+                title: '3C 電子',
+                isCollapsed: true,
+                items: [
+                { id: 'e1', name: '耳機', checked: false },
+                { id: 'e2', name: '相機/充電器/記憶卡', checked: false },
+                { id: 'e3', name: '手機充電器', checked: false },
+                { id: 'e4', name: '行動電源/線/手錶充電線', checked: false },
+                { id: 'e5', name: '萬國插頭', checked: false },
+                { id: 'e6', name: '自拍棒', checked: false },
+                { id: 'e7', name: '延長線', checked: false },
+                ]
+            },
+            {
+                id: 'toiletries',
+                title: '盥洗用品',
+                isCollapsed: true,
+                items: [
+                { id: 't1', name: '牙線/牙刷/牙膏', checked: false },
+                { id: 't2', name: '洗面乳/洗護髮/沐浴乳/卸妝', checked: false },
+                { id: 't3', name: '旅行吹風機', checked: false },
+                { id: 't4', name: '梳子', checked: false },
+                { id: 't5', name: '毛巾', checked: false },
+                { id: 't6', name: '洗臉巾', checked: false },
+                ]
+            },
+            {
+                id: 'skincare',
+                title: '保養化妝',
+                isCollapsed: true,
+                items: [
+                { id: 'sk1', name: '精華液/乳液/護唇膏', checked: false },
+                { id: 'sk2', name: '面膜', checked: false },
+                { id: 'sk3', name: '美容儀', checked: false },
+                { id: 'sk4', name: '棉花棒/化妝棉', checked: false },
+                { id: 'sk5', name: '化妝品', checked: false },
+                { id: 'sk6', name: '香水', checked: false },
+                { id: 'sk7', name: '電捲棒', checked: false },
+                ]
+            },
+            {
+                id: 'daily',
+                title: '生活雜物',
+                isCollapsed: true,
+                items: [
+                { id: 'da1', name: '眼鏡/隱形眼鏡/眼鏡盒', checked: false },
+                { id: 'da2', name: '面紙/溼紙巾', checked: false },
+                { id: 'da3', name: '酒精', checked: false },
+                { id: 'da4', name: '口罩', checked: false },
+                { id: 'da5', name: '雨傘', checked: false },
+                { id: 'da6', name: '防曬乳', checked: false },
+                { id: 'da7', name: '衛生棉', checked: false },
+                { id: 'da8', name: '筆', checked: false },
+                { id: 'da9', name: '小剪刀', checked: false },
+                { id: 'da10', name: '香氛', checked: false },
+                { id: 'da11', name: '水瓶', checked: false },
+                ]
+            },
+            {
+                id: 'medicine',
+                title: '隨身藥物',
+                isCollapsed: true,
+                items: [
+                { id: 'm1', name: '止痛藥', checked: false },
+                { id: 'm2', name: '暈車藥', checked: false },
+                { id: 'm3', name: '感冒藥', checked: false },
+                { id: 'm4', name: '腸胃藥', checked: false },
+                { id: 'm5', name: '蚊蟲藥', checked: false },
+                { id: 'm6', name: 'Ok繃', checked: false },
+                ]
+            }
+        ];
+
+        // --- Main App Component ---
+        function App() {
+            const [categories, setCategories] = useState(() => {
+                try {
+                const saved = localStorage.getItem('packing-list-v1');
+                return saved ? JSON.parse(saved) : DEFAULT_DATA;
+                } catch (e) {
+                return DEFAULT_DATA;
+                }
+            });
+
+            const [newCatName, setNewCatName] = useState('');
+            const [showAddCat, setShowAddCat] = useState(false);
+            const [editingCatId, setEditingCatId] = useState(null);
+            const [editCatName, setEditCatName] = useState('');
+            const [itemEditConfig, setItemEditConfig] = useState(null); 
+            const [modalConfig, setModalConfig] = useState(null); 
+            const [showStats, setShowStats] = useState(false);
+
+            // Cloud State
+            const [showCloudModal, setShowCloudModal] = useState(false);
+            const [cloudFileName, setCloudFileName] = useState('');
+            const [savedLists, setSavedLists] = useState([]);
+            const [isLoading, setIsLoading] = useState(false);
+            const [user, setUser] = useState(null); // Auth State
+
+            useEffect(() => {
+                localStorage.setItem('packing-list-v1', JSON.stringify(categories));
+            }, [categories]);
+
+            // --- Authentication Logic ---
+            useEffect(() => {
+                const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+                    if (currentUser) {
+                        setUser(currentUser);
+                        console.log("User signed in anonymously:", currentUser.uid);
+                    } else {
+                        console.log("No user, signing in anonymously...");
+                        signInAnonymously(auth).catch((error) => {
+                            console.error("Anonymous auth failed:", error);
+                            setModalConfig({ 
+                                type: 'error', 
+                                title: '登入失敗', 
+                                message: '無法進行匿名登入。請確認 Firebase Console 中的 Authentication > Sign-in method 已開啟 "Anonymous"。' 
+                            });
+                        });
+                    }
+                });
+                return () => unsubscribe();
+            }, []);
+
+            // --- Firebase Logic ---
+            const fetchSavedLists = async () => {
+                setIsLoading(true);
+                try {
+                    const querySnapshot = await getDocs(collection(db, COLLECTION_NAME));
+                    const lists = [];
+                    querySnapshot.forEach((doc) => {
+                        lists.push({ id: doc.id, ...doc.data() });
+                    });
+                    setSavedLists(lists);
+                } catch (error) {
+                    console.error("Error fetching documents: ", error);
+                    let msg = '無法從雲端讀取資料。';
+                    if (error.code === 'permission-denied') {
+                        msg = '權限不足。請檢查 Firebase Console 的 Firestore Rules 是否允許讀寫，以及是否已開啟匿名登入。';
+                    }
+                    setModalConfig({ type: 'error', title: '讀取失敗', message: msg });
+                } finally {
+                    setIsLoading(false);
+                }
+            };
+
+            const saveToCloud = async () => {
+                if (!cloudFileName.trim()) return;
+                setIsLoading(true);
+                try {
+                    await setDoc(doc(db, COLLECTION_NAME, cloudFileName.trim()), {
+                        data: categories,
+                        updatedAt: new Date().toISOString(),
+                        userId: user ? user.uid : 'anonymous'
+                    });
+                    setModalConfig({ type: 'success', title: '存檔成功', message: `清單 "${cloudFileName}" 已成功儲存到雲端。` });
+                    fetchSavedLists(); // Refresh list
+                    setCloudFileName('');
+                } catch (error) {
+                    console.error("Error writing document: ", error);
+                    let msg = '無法儲存到雲端。';
+                    if (error.code === 'permission-denied') {
+                        msg = '權限不足。請檢查 Firebase Console 的 Firestore Rules。';
+                    }
+                    setModalConfig({ type: 'error', title: '存檔失敗', message: msg });
+                } finally {
+                    setIsLoading(false);
+                }
+            };
+
+            const loadFromCloud = (listData) => {
+                if (listData && listData.data) {
+                    setCategories(listData.data);
+                    setShowCloudModal(false);
+                    setModalConfig({ type: 'success', title: '讀取成功', message: '已載入雲端清單。' });
+                }
+            };
+
+            // FIX: Use custom modal instead of confirm()
+            const requestDeleteCloud = (docId) => {
+                 setModalConfig({ 
+                    type: 'deleteCloud', 
+                    data: docId, 
+                    title: '刪除存檔', 
+                    message: `確定要刪除雲端存檔 "${docId}" 嗎？此動作無法復原。` 
+                });
+            };
+
+            const executeDeleteCloud = async (docId) => {
+                setIsLoading(true);
+                try {
+                    await deleteDoc(doc(db, COLLECTION_NAME, docId));
+                    // 刪除後不一定要跳成功視窗，直接重新整理列表即可，體驗較流暢
+                    // setModalConfig({ type: 'success', title: '刪除成功', message: '檔案已成功刪除。' }); 
+                    setModalConfig(null); // Close the confirmation modal
+                    fetchSavedLists();
+                } catch (error) {
+                    console.error("Error deleting document: ", error);
+                    setModalConfig({ type: 'error', title: '刪除失敗', message: '無法刪除檔案，可能是權限不足 (Permission Denied)。請檢查 Firestore Rules。' });
+                } finally {
+                    setIsLoading(false);
+                }
+            };
+
+            useEffect(() => {
+                if (showCloudModal) {
+                    // Only fetch if we have a user (or try anyway and let the error handler catch it)
+                    if (user) {
+                        fetchSavedLists();
+                    } else {
+                        // Retry fetch once user is populated or show loading
+                        // We rely on the auth effect to sign in.
+                    }
+                }
+            }, [showCloudModal, user]);
+
+
+            // --- Core Logic ---
+
+            const getStats = () => {
+                let total = 0;
+                let checked = 0;
+                const remainingItems = [];
+
+                categories.forEach(cat => {
+                cat.items.forEach(item => {
+                    total++;
+                    if (item.checked) {
+                    checked++;
+                    } else {
+                    remainingItems.push({ ...item, catTitle: cat.title });
+                    }
+                });
+                });
+                
+                return {
+                total,
+                checked,
+                progress: total === 0 ? 0 : Math.round((checked / total) * 100),
+                remainingItems
+                };
+            };
+
+            const stats = getStats();
+
+            const toggleCheck = (catId, itemId) => {
+                setCategories(prev => prev.map(cat => {
+                if (cat.id !== catId) return cat;
+                return {
+                    ...cat,
+                    items: cat.items.map(item => 
+                    item.id === itemId ? { ...item, checked: !item.checked } : item
+                    )
+                };
+                }));
+            };
+
+            const addItem = (catId, itemName) => {
+                if (!itemName || !itemName.trim()) return;
+                setCategories(prev => prev.map(cat => {
+                if (cat.id !== catId) return cat;
+                return {
+                    ...cat,
+                    items: [...cat.items, { id: Date.now().toString(), name: itemName.trim(), checked: false }]
+                };
+                }));
+            };
+
+            const deleteItem = (catId, itemId) => {
+                setCategories(prev => prev.map(cat => {
+                if (cat.id !== catId) return cat;
+                return {
+                    ...cat,
+                    items: cat.items.filter(item => item.id !== itemId)
+                };
+                }));
+            };
+
+            const openEditItem = (catId, item) => {
+                setItemEditConfig({
+                catId,
+                item,
+                newName: item.name,
+                newCatId: catId
+                });
+            };
+
+            const saveEditItem = () => {
+                if (!itemEditConfig || !itemEditConfig.newName.trim()) return;
+                const { catId, item, newName, newCatId } = itemEditConfig;
+                setCategories(prev => {
+                if (catId === newCatId) {
+                    return prev.map(cat => {
+                    if (cat.id !== catId) return cat;
+                    return { ...cat, items: cat.items.map(i => i.id === item.id ? { ...i, name: newName } : i) };
+                    });
+                } else {
+                    const itemToMove = { ...item, name: newName };
+                    return prev.map(cat => {
+                    if (cat.id === catId) return { ...cat, items: cat.items.filter(i => i.id !== item.id) };
+                    if (cat.id === newCatId) return { ...cat, items: [...cat.items, itemToMove] };
+                    return cat;
+                    });
+                }
+                });
+                setItemEditConfig(null);
+            };
+
+            const addCategory = () => {
+                if (!newCatName.trim()) return;
+                setCategories(prev => [...prev, { id: Date.now().toString(), title: newCatName.trim(), items: [], isCollapsed: false }]);
+                setNewCatName('');
+                setShowAddCat(false);
+            };
+
+            const requestDeleteCategory = (catId) => {
+                setModalConfig({ type: 'deleteCat', data: catId, title: '刪除分類', message: '確定要刪除整個分類嗎？此動作無法復原。' });
+            };
+
+            const executeDeleteCategory = (catId) => {
+                setCategories(prev => prev.filter(cat => cat.id !== catId));
+                setModalConfig(null);
+            };
+
+            const startEditCategory = (cat, e) => {
+                e.stopPropagation();
+                setEditingCatId(cat.id);
+                setEditCatName(cat.title);
+            };
+
+            const saveEditCategory = (catId) => {
+                if (!editCatName.trim()) return;
+                setCategories(prev => prev.map(cat => cat.id === catId ? { ...cat, title: editCatName.trim() } : cat));
+                setEditingCatId(null);
+            };
+
+            const toggleCollapse = (catId) => {
+                if (editingCatId === catId) return;
+                setCategories(prev => prev.map(cat => cat.id === catId ? { ...cat, isCollapsed: !cat.isCollapsed } : cat));
+            };
+
+            const requestResetChecks = () => setModalConfig({ type: 'reset', title: '清除所有勾選', message: '確定要清除所有項目的勾選狀態嗎？' });
+            const executeResetChecks = () => {
+                setCategories(prev => prev.map(cat => ({ ...cat, items: cat.items.map(item => ({ ...item, checked: false })) })));
+                setModalConfig(null);
+            };
+
+            const requestRestoreDefault = () => setModalConfig({ type: 'restore', title: '恢復預設清單', message: '確定要重置回預設清單嗎？所有的自訂項目將會消失。' });
+            const executeRestoreDefault = () => {
+                setCategories(DEFAULT_DATA);
+                setModalConfig(null);
+            };
+
+            // --- Render ---
+
+            return (
+                <div 
+                    className="min-h-screen bg-cover bg-center bg-fixed text-slate-700 font-sans selection:bg-indigo-200 selection:text-indigo-900 pb-32 transition-all duration-500"
+                    style={{ backgroundImage: "url('12.jpg')" }}
+                >
+                {/* 遮罩層：確保背景有圖片時文字依然清晰 */}
+                <div className="fixed inset-0 bg-white/40 backdrop-blur-[2px] z-0 pointer-events-none"></div>
+
+                <div className="relative z-10">
+                    {/* 頂部導覽列：玻璃擬態 */}
+                    <header className="sticky top-0 z-40 bg-white/70 backdrop-blur-xl border-b border-white/50 shadow-sm">
+                        <div className="max-w-6xl mx-auto px-4 py-4">
+                        <div className="flex items-center justify-between mb-3">
+                            <div className="flex items-center gap-3">
+                            <div className="bg-gradient-to-tr from-indigo-500 to-purple-500 p-2.5 rounded-2xl shadow-lg shadow-indigo-500/30 rotate-3 transition-transform hover:rotate-6">
+                                <Plane className="w-6 h-6 text-white" strokeWidth={2.5} />
+                            </div>
+                            <div>
+                                <h1 className="text-2xl font-black bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 to-purple-600 tracking-tight">
+                                Pack & Go
+                                </h1>
+                                <p className="text-xs text-slate-500 font-medium tracking-wide uppercase">Travel Checklist</p>
+                            </div>
+                            </div>
+                            
+                            <div className="flex gap-2">
+                                <button 
+                                    onClick={() => setShowCloudModal(true)}
+                                    className="p-2.5 text-slate-500 hover:text-sky-600 hover:bg-white/80 rounded-xl transition-all border border-transparent hover:border-sky-100 hover:shadow-sm"
+                                    title="雲端存取"
+                                >
+                                    <Cloud className="w-5 h-5" />
+                                </button>
+                                <button 
+                                    onClick={requestResetChecks}
+                                    className="p-2.5 text-slate-500 hover:text-indigo-600 hover:bg-white/80 rounded-xl transition-all border border-transparent hover:border-indigo-100 hover:shadow-sm"
+                                    title="清除勾選"
+                                >
+                                    <RefreshCw className="w-5 h-5" />
+                                </button>
+                                <button 
+                                    onClick={requestRestoreDefault}
+                                    className="p-2.5 text-slate-500 hover:text-rose-500 hover:bg-white/80 rounded-xl transition-all border border-transparent hover:border-rose-100 hover:shadow-sm"
+                                    title="恢復預設清單"
+                                >
+                                    <RotateCcw className="w-5 h-5" />
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* 進度條：跑道風格 */}
+                        <div className="relative pt-2 px-1">
+                            <div className="flex justify-between text-xs font-bold text-slate-400 mb-1.5 uppercase tracking-wider">
+                                <span>Ready</span>
+                                <span>Set</span>
+                                <span>Go</span>
+                            </div>
+                            <div className="relative h-3 bg-slate-200/60 rounded-full overflow-hidden shadow-inner">
+                                <div 
+                                style={{ width: `${stats.progress}%` }} 
+                                className="absolute top-0 left-0 h-full bg-gradient-to-r from-indigo-400 via-purple-400 to-rose-400 transition-all duration-700 ease-out rounded-full"
+                                >
+                                {/* 光澤效果 */}
+                                <div className="absolute top-0 right-0 bottom-0 left-0 bg-gradient-to-b from-white/30 to-transparent"></div>
+                                </div>
+                            </div>
+                            {/* 飛機圖示跟隨進度 */}
+                            <div 
+                                className="absolute top-3.5 w-6 h-6 -ml-3 transition-all duration-700 ease-out text-purple-600 drop-shadow-md z-10 pointer-events-none"
+                                style={{ left: `${stats.progress}%` }}
+                            >
+                                <Plane className="w-full h-full rotate-45 fill-white" />
+                            </div>
+                        </div>
+                        </div>
+                    </header>
+
+                    <main className="max-w-6xl mx-auto px-4 py-8">
+                        <div className="columns-1 md:columns-2 lg:columns-3 gap-6">
+                        {categories.map((category) => {
+                            const IconComponent = CATEGORY_ICONS[category.id] || Map;
+
+                            return (
+                            <div 
+                                key={category.id} 
+                                className={`
+                                group bg-white/60 backdrop-blur-md rounded-3xl border border-white/60 shadow-lg shadow-indigo-100/50 
+                                transition-all duration-300 hover:shadow-xl hover:shadow-indigo-200/60 hover:-translate-y-1 flex flex-col overflow-hidden
+                                break-inside-avoid mb-6
+                                `}
+                            >
+                                {/* 卡片標題區 */}
+                                <div 
+                                onClick={() => toggleCollapse(category.id)}
+                                className="p-5 flex justify-between items-center cursor-pointer select-none bg-gradient-to-b from-white/50 to-transparent border-b border-white/40"
+                                >
+                                {editingCatId === category.id ? (
+                                    <div className="flex items-center gap-2 w-full" onClick={(e) => e.stopPropagation()}>
+                                        <input 
+                                        type="text" 
+                                        value={editCatName} 
+                                        onChange={(e) => setEditCatName(e.target.value)}
+                                        className="flex-1 px-3 py-2 text-base font-bold text-slate-800 bg-white/80 border border-indigo-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-400 shadow-inner"
+                                        autoFocus
+                                        onKeyDown={(e) => e.key === 'Enter' && saveEditCategory(category.id)}
+                                        />
+                                        <button onClick={() => saveEditCategory(category.id)} className="text-green-600 bg-green-100 p-2 rounded-xl hover:bg-green-200 transition-colors">
+                                        <Save className="w-4 h-4" />
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <>
+                                    <div className="flex items-center gap-3 overflow-hidden">
+                                        <div className={`
+                                        p-2.5 rounded-2xl shadow-sm transition-colors duration-300
+                                        ${category.items.length > 0 && category.items.every(i => i.checked) 
+                                            ? 'bg-gradient-to-br from-green-400 to-emerald-500 text-white shadow-green-200' 
+                                            : 'bg-white text-indigo-500 shadow-indigo-100'}
+                                        `}>
+                                        <IconComponent className="w-5 h-5" strokeWidth={2} />
+                                        </div>
+                                        <div>
+                                        <h3 className="font-bold text-slate-800 text-lg leading-tight">
+                                            {category.title}
+                                        </h3>
+                                        <div className="flex items-center gap-1.5 mt-0.5">
+                                            <div className="h-1.5 w-16 bg-slate-200 rounded-full overflow-hidden">
+                                                <div 
+                                                className="h-full bg-indigo-400 rounded-full transition-all duration-500"
+                                                style={{ width: `${category.items.length ? (category.items.filter(i => i.checked).length / category.items.length) * 100 : 0}%` }}
+                                                ></div>
+                                            </div>
+                                            <span className="text-[10px] font-bold text-slate-400">
+                                                {category.items.filter(i => i.checked).length}/{category.items.length}
+                                            </span>
+                                        </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex items-center gap-1">
+                                        {/* 編輯按鈕群組 - 加上 stopPropagation 防止觸發折疊 */}
+                                        <div className="flex gap-1 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-all" onClick={(e) => e.stopPropagation()}>
+                                        <button 
+                                            onClick={(e) => startEditCategory(category, e)}
+                                            className="text-slate-400 hover:text-indigo-600 p-2 hover:bg-indigo-50 rounded-xl transition-colors"
+                                        >
+                                            <Edit2 className="w-4 h-4" />
+                                        </button>
+                                        <button 
+                                            onClick={() => requestDeleteCategory(category.id)}
+                                            className="text-slate-400 hover:text-rose-500 p-2 hover:bg-rose-50 rounded-xl transition-colors"
+                                        >
+                                            <Trash2 className="w-4 h-4" />
+                                        </button>
+                                        </div>
+                                        <div className="w-px h-4 bg-slate-200 mx-1"></div>
+                                        
+                                        {/* 折疊箭頭 - 移除 stopPropagation，確保點擊可折疊 */}
+                                        <div className="text-slate-300 transition-transform duration-300">
+                                            {category.isCollapsed ? <ChevronRight className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+                                        </div>
+                                    </div>
+                                    </>
+                                )}
+                                </div>
+
+                                {/* 物品列表 */}
+                                {!category.isCollapsed && (
+                                <>
+                                    <div className="p-3 flex-1 bg-white/30 backdrop-blur-sm">
+                                    {category.items.length === 0 ? (
+                                        <div className="text-center py-8 text-slate-400/80 text-sm font-medium italic flex flex-col items-center gap-2">
+                                        <div className="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center">
+                                            <Sparkles className="w-5 h-5 text-slate-300" />
+                                        </div>
+                                        空空如也，加點東西吧？
+                                        </div>
+                                    ) : (
+                                        <ul className="space-y-2">
+                                        {category.items.map((item) => (
+                                            <li 
+                                            key={item.id} 
+                                            className={`
+                                                group relative flex items-center justify-between p-3 rounded-xl cursor-pointer transition-all duration-300 select-none border
+                                                ${item.checked 
+                                                ? 'bg-indigo-50/60 border-indigo-100 shadow-inner' 
+                                                : 'bg-white border-transparent hover:border-indigo-100 hover:shadow-md hover:shadow-indigo-100/40 hover:-translate-y-0.5'}
+                                            `}
+                                            onClick={() => toggleCheck(category.id, item.id)}
+                                            >
+                                            <div className="flex items-center gap-3 overflow-hidden flex-1 z-10">
+                                                <div className={`
+                                                w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all duration-300 shrink-0
+                                                ${item.checked 
+                                                    ? 'bg-gradient-to-tr from-indigo-500 to-purple-500 border-transparent scale-100 shadow-sm shadow-indigo-300' 
+                                                    : 'border-slate-300 bg-white group-hover:border-indigo-300 scale-95 group-hover:scale-100'}
+                                                `}>
+                                                <Check className={`w-3.5 h-3.5 text-white stroke-[3px] transition-all duration-300 ${item.checked ? 'opacity-100 scale-100' : 'opacity-0 scale-50'}`} />
+                                                </div>
+                                                <span className={`text-[15px] font-medium truncate transition-all duration-300 ${item.checked ? 'text-slate-400 line-through decoration-2 decoration-indigo-200' : 'text-slate-700'}`}>
+                                                {item.name}
+                                                </span>
+                                            </div>
+                                            
+                                            {/* 操作按鈕 */}
+                                            <div className="flex items-center gap-1 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-all z-20">
+                                                <button 
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    openEditItem(category.id, item);
+                                                }}
+                                                className="p-1.5 text-slate-400 hover:text-indigo-600 rounded-lg hover:bg-indigo-50 transition-all shrink-0"
+                                                title="編輯物品"
+                                                >
+                                                <Pencil className="w-4 h-4" />
+                                                </button>
+                                                <button 
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    deleteItem(category.id, item.id);
+                                                }}
+                                                className="p-1.5 text-slate-400 hover:text-rose-500 rounded-lg hover:bg-rose-50 transition-all shrink-0"
+                                                title="刪除物品"
+                                                >
+                                                <X className="w-4 h-4" />
+                                                </button>
+                                            </div>
+                                            </li>
+                                        ))}
+                                        </ul>
+                                    )}
+                                    </div>
+
+                                    <div className="p-3 bg-white/40 border-t border-white/50">
+                                    <AddItemInput onAdd={(name) => addItem(category.id, name)} />
+                                    </div>
+                                </>
+                                )}
+                            </div>
+                            );
+                        })}
+
+                        <button
+                            className="min-h-[140px] rounded-3xl border-3 border-dashed border-indigo-200/60 bg-white/30 hover:bg-white/60 flex flex-col items-center justify-center p-6 text-indigo-300 hover:text-indigo-500 hover:border-indigo-300 hover:shadow-lg transition-all duration-300 group w-full break-inside-avoid mb-6"
+                            onClick={() => setShowAddCat(true)}
+                        >
+                            <div className="bg-white/80 p-3 rounded-full mb-3 shadow-sm group-hover:scale-110 transition-transform duration-300">
+                            <Plus className="w-6 h-6" />
+                            </div>
+                            <span className="font-bold text-lg">新增分類</span>
+                            <span className="text-xs mt-1 opacity-70">Create New Collection</span>
+                        </button>
+                        </div>
+                    </main>
+
+                    {/* 底部浮動裝飾 */}
+                    <div className="fixed bottom-8 right-6 z-30 perspective-1000">
+                        <button 
+                        onClick={() => setShowStats(true)}
+                        className="relative bg-gradient-to-r from-indigo-600 to-purple-600 text-white w-16 h-16 rounded-full shadow-2xl shadow-indigo-400/60 hover:-translate-y-2 active:scale-95 transition-all duration-300 flex items-center justify-center group"
+                        title="查看打包進度統計"
+                        >
+                        <Luggage className="w-7 h-7 group-hover:rotate-6 transition-transform duration-300" strokeWidth={1.5} />
+                        {stats.remainingItems.length > 0 && (
+                            <span className="absolute -top-1 -right-1 bg-rose-500 text-white text-[11px] font-bold min-w-[22px] h-[22px] flex items-center justify-center rounded-full border-2 border-white animate-bounce shadow-md">
+                            {stats.remainingItems.length}
+                            </span>
+                        )}
+                        <span className="absolute inset-0 rounded-full border border-indigo-400 opacity-0 group-hover:animate-ping"></span>
+                        </button>
+                    </div>
+
+                    {/* --- Modals 區塊 --- */}
+                    
+                    {/* Cloud Modal */}
+                    {showCloudModal && (
+                        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                            <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in duration-200 flex flex-col max-h-[85vh] border border-white/50">
+                                {/* Header */}
+                                <div className="p-6 bg-gradient-to-r from-sky-500 to-indigo-500 text-white">
+                                    <div className="flex justify-between items-start">
+                                        <div>
+                                            <h2 className="text-2xl font-bold flex items-center gap-2">
+                                            <Cloud className="w-6 h-6" /> 雲端存取
+                                            </h2>
+                                            <p className="text-sky-100 text-sm mt-1">儲存或讀取你的行李清單</p>
+                                        </div>
+                                        <button onClick={() => setShowCloudModal(false)} className="bg-white/20 hover:bg-white/30 p-2 rounded-full transition-colors">
+                                            <X className="w-5 h-5" />
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div className="flex-1 overflow-y-auto bg-slate-50 p-6 space-y-6">
+                                    {/* Error/Tip message block */}
+                                    {!user && (
+                                        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex gap-3">
+                                            <Info className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
+                                            <div className="text-sm text-amber-800">
+                                                <p className="font-bold">尚未連線到雲端</p>
+                                                <p>請稍候，系統正在嘗試連線。若持續失敗，請確認你的網路狀態，或檢查 Firebase Console 是否已開啟「匿名登入 (Anonymous Auth)」。</p>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Save Section */}
+                                    <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
+                                        <h3 className="font-bold text-slate-700 mb-3 flex items-center gap-2">
+                                            <Upload className="w-4 h-4 text-indigo-500" /> 儲存目前清單
+                                        </h3>
+                                        <div className="flex gap-2">
+                                            <input 
+                                                type="text" 
+                                                placeholder="輸入存檔名稱 (如: 日本之旅)" 
+                                                className="flex-1 px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-300 focus:outline-none"
+                                                value={cloudFileName}
+                                                onChange={(e) => setCloudFileName(e.target.value)}
+                                            />
+                                            <button 
+                                                onClick={saveToCloud}
+                                                disabled={isLoading || !cloudFileName.trim() || !user}
+                                                className="px-4 py-2 bg-indigo-500 hover:bg-indigo-600 text-white rounded-xl font-medium transition-colors disabled:opacity-50 flex items-center gap-2"
+                                            >
+                                                {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : "儲存"}
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    {/* Load Section */}
+                                    <div>
+                                        <h3 className="font-bold text-slate-700 mb-3 flex items-center gap-2">
+                                            <Download className="w-4 h-4 text-emerald-500" /> 讀取已存檔清單
+                                        </h3>
+                                        <div className="space-y-2">
+                                            {isLoading && savedLists.length === 0 ? (
+                                                <div className="text-center py-6 text-slate-400">
+                                                    <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" />
+                                                    載入中...
+                                                </div>
+                                            ) : savedLists.length === 0 ? (
+                                                <div className="text-center py-6 text-slate-400 bg-slate-100 rounded-xl border border-dashed border-slate-200">
+                                                    尚無存檔紀錄
+                                                </div>
+                                            ) : (
+                                                savedLists.map(list => (
+                                                    <div key={list.id} className="flex items-center justify-between p-3 bg-white border border-slate-100 rounded-xl shadow-sm hover:border-indigo-200 transition-colors">
+                                                        <div>
+                                                            <div className="font-bold text-slate-700">{list.id}</div>
+                                                            <div className="text-xs text-slate-400">
+                                                                {list.updatedAt ? new Date(list.updatedAt).toLocaleString() : '未知時間'}
+                                                            </div>
+                                                        </div>
+                                                        <div className="flex gap-2">
+                                                            <button 
+                                                                onClick={() => loadFromCloud(list)}
+                                                                className="p-2 text-emerald-600 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition-colors text-xs font-bold"
+                                                            >
+                                                                讀取
+                                                            </button>
+                                                            <button 
+                                                                onClick={() => requestDeleteCloud(list.id)}
+                                                                className="p-2 text-rose-500 hover:bg-rose-50 rounded-lg transition-colors"
+                                                            >
+                                                                <Trash2 className="w-4 h-4" />
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                ))
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* 打包儀表板 Modal - 恢復原始白底樣式 */}
+                    {showStats && (
+                        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                        <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in duration-200 flex flex-col max-h-[85vh]">
+                            
+                            {/* Header */}
+                            <div className="p-6 bg-gradient-to-r from-indigo-500 to-sky-500 text-white">
+                            <div className="flex justify-between items-start mb-4">
+                                <div>
+                                    <h2 className="text-2xl font-bold flex items-center gap-2">
+                                    <Luggage className="w-6 h-6" /> 打包儀表板
+                                    </h2>
+                                    <p className="text-indigo-100 text-sm mt-1">Ready to go?</p>
+                                </div>
+                                <button onClick={() => setShowStats(false)} className="bg-white/20 hover:bg-white/30 p-2 rounded-full transition-colors">
+                                    <X className="w-5 h-5" />
+                                </button>
+                            </div>
+
+                            {/* Stats Grid */}
+                            <div className="grid grid-cols-3 gap-3">
+                                <div className="bg-white/20 backdrop-blur-sm p-3 rounded-xl text-center">
+                                    <div className="text-2xl font-bold">{stats.total}</div>
+                                    <div className="text-xs text-indigo-100 opacity-80">總物品</div>
+                                </div>
+                                <div className="bg-white/20 backdrop-blur-sm p-3 rounded-xl text-center">
+                                    <div className="text-2xl font-bold">{stats.checked}</div>
+                                    <div className="text-xs text-indigo-100 opacity-80">已打包</div>
+                                </div>
+                                <div className="bg-white/20 backdrop-blur-sm p-3 rounded-xl text-center border border-white/30">
+                                    <div className="text-2xl font-bold text-white">{stats.remainingItems.length}</div>
+                                    <div className="text-xs text-indigo-100 opacity-80">剩餘</div>
+                                </div>
+                            </div>
+                            </div>
+
+                            {/* Content: Remaining Items List (Original Style) */}
+                            <div className="flex-1 overflow-y-auto p-4 bg-slate-50">
+                            {stats.remainingItems.length === 0 ? (
+                                <div className="h-full flex flex-col items-center justify-center text-center p-8">
+                                    <div className="w-20 h-20 bg-green-100 text-green-500 rounded-full flex items-center justify-center mb-4 text-4xl">
+                                    🎉
+                                    </div>
+                                    <h3 className="text-xl font-bold text-slate-800 mb-2">恭喜！全部打包完成</h3>
+                                    <p className="text-slate-500">準備好出發去旅行吧！Have a nice trip!</p>
+                                </div>
+                            ) : (
+                                <>
+                                    <h4 className="text-sm font-bold text-slate-500 uppercase mb-3 flex items-center gap-2">
+                                    <ListTodo className="w-4 h-4" /> 尚未打包物品
+                                    </h4>
+                                    <div className="space-y-2">
+                                    {stats.remainingItems.map((item) => (
+                                        <div 
+                                        key={item.id} 
+                                        onClick={() => {
+                                            toggleCheck(categories.find(c => c.title === item.catTitle).id, item.id);
+                                        }}
+                                        className="flex items-center justify-between p-3 bg-white rounded-xl border border-slate-100 shadow-sm cursor-pointer hover:border-sky-300 transition-all group"
+                                        >
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-2 h-2 rounded-full bg-rose-400"></div>
+                                            <div>
+                                            <div className="font-medium text-slate-700">{item.name}</div>
+                                            <div className="text-xs text-slate-400">{item.catTitle}</div>
+                                            </div>
+                                        </div>
+                                        <div className="w-6 h-6 rounded-full border-2 border-slate-200 flex items-center justify-center group-hover:border-sky-400">
+                                            <Check className="w-3 h-3 text-sky-500 opacity-0 group-hover:opacity-100" />
+                                        </div>
+                                        </div>
+                                    ))}
+                                    </div>
+                                </>
+                            )}
+                            </div>
+                            
+                            <div className="p-4 border-t border-slate-100 bg-white text-center">
+                            <button 
+                                onClick={() => setShowStats(false)}
+                                className="w-full py-3 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold rounded-xl transition-colors"
+                            >
+                                關閉
+                            </button>
+                            </div>
+                        </div>
+                        </div>
+                    )}
+
+                    {/* 其他 Modals (新增分類、編輯物品、確認對話框) */}
+                    {[itemEditConfig, modalConfig, showAddCat].some(Boolean) && !showStats && (
+                        <div className="fixed inset-0 bg-slate-900/30 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
+                        {showAddCat && (
+                            <div className="bg-white/95 backdrop-blur-xl rounded-3xl shadow-2xl p-8 w-full max-w-sm animate-in fade-in zoom-in duration-200 border border-white/50">
+                                <h3 className="text-xl font-bold text-slate-800 mb-6 flex items-center gap-2">
+                                <Plus className="w-6 h-6 text-indigo-500" /> 新增分類
+                                </h3>
+                                <input
+                                type="text"
+                                placeholder="例如：攝影器材"
+                                className="w-full px-5 py-4 rounded-2xl bg-slate-50 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:bg-white text-lg mb-6 shadow-inner"
+                                value={newCatName}
+                                onChange={(e) => setNewCatName(e.target.value)}
+                                autoFocus
+                                onKeyDown={(e) => {
+                                    if(e.key === 'Enter') addCategory();
+                                    if(e.key === 'Escape') setShowAddCat(false);
+                                }}
+                                />
+                                <div className="flex gap-3">
+                                <button onClick={() => setShowAddCat(false)} className="flex-1 py-3 rounded-xl text-slate-500 hover:bg-slate-100 font-bold transition-colors">取消</button>
+                                <button onClick={addCategory} className="flex-1 py-3 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white font-bold shadow-lg shadow-indigo-200 transition-all transform hover:-translate-y-0.5">建立</button>
+                                </div>
+                            </div>
+                        )}
+
+                        {itemEditConfig && (
+                            <div className="bg-white/95 backdrop-blur-xl rounded-3xl shadow-2xl p-8 w-full max-w-sm animate-in fade-in zoom-in duration-200 border border-white/50">
+                            <div className="flex justify-between items-center mb-6">
+                                <h3 className="text-xl font-bold text-slate-800">編輯物品</h3>
+                                <button onClick={() => setItemEditConfig(null)} className="p-2 hover:bg-slate-100 rounded-full"><X className="w-5 h-5 text-slate-400" /></button>
+                            </div>
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider ml-1 mb-1 block">Name</label>
+                                    <input type="text" value={itemEditConfig.newName} onChange={(e) => setItemEditConfig(prev => ({...prev, newName: e.target.value}))} className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-400 bg-slate-50 font-medium" />
+                                </div>
+                                <div>
+                                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider ml-1 mb-1 block">Category</label>
+                                    <div className="relative">
+                                    <select value={itemEditConfig.newCatId} onChange={(e) => setItemEditConfig(prev => ({...prev, newCatId: e.target.value}))} className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-400 bg-slate-50 font-medium appearance-none text-slate-700">
+                                        {categories.map(cat => <option key={cat.id} value={cat.id}>{cat.title}</option>)}
+                                    </select>
+                                    <ArrowRight className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                                    </div>
+                                </div>
+                            </div>
+                            <button onClick={saveEditItem} disabled={!itemEditConfig.newName.trim()} className="w-full mt-6 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold shadow-lg shadow-indigo-200 disabled:opacity-50 transition-all">儲存變更</button>
+                            </div>
+                        )}
+
+                        {modalConfig && (
+                            <div className="bg-white/95 backdrop-blur-xl rounded-3xl shadow-2xl p-8 w-full max-w-sm animate-in fade-in zoom-in duration-200 border border-white/50 text-center">
+                            <div className="w-16 h-16 bg-rose-100 text-rose-500 rounded-full flex items-center justify-center mx-auto mb-5 shadow-inner">
+                                {modalConfig.type === 'success' ? <Check className="w-8 h-8 text-emerald-500" strokeWidth={3} /> : <AlertTriangle className="w-8 h-8" strokeWidth={2.5} />}
+                            </div>
+                            <h3 className="text-xl font-bold text-slate-800 mb-2">{modalConfig.title}</h3>
+                            <p className="text-slate-500 mb-6 leading-relaxed">{modalConfig.message}</p>
+                            <div className="flex gap-3">
+                                <button onClick={() => setModalConfig(null)} className="flex-1 py-3 rounded-xl text-slate-500 hover:bg-slate-100 font-bold transition-colors">
+                                    {modalConfig.type === 'success' || modalConfig.type === 'error' ? '關閉' : '取消'}
+                                </button>
+                                {modalConfig.type !== 'success' && modalConfig.type !== 'error' && (
+                                    <button onClick={() => {
+                                    if (modalConfig.type === 'deleteCat') executeDeleteCategory(modalConfig.data);
+                                    if (modalConfig.type === 'reset') executeResetChecks();
+                                    if (modalConfig.type === 'restore') executeRestoreDefault();
+                                    if (modalConfig.type === 'deleteCloud') executeDeleteCloud(modalConfig.data);
+                                    }} className="flex-1 py-3 rounded-xl bg-rose-500 hover:bg-rose-600 text-white font-bold shadow-lg shadow-rose-200 transition-all">確認執行</button>
+                                )}
+                            </div>
+                            </div>
+                        )}
+                        </div>
+                    )}
+
+                </div>
+                </div>
+            );
+        }
+
+        function AddItemInput({ onAdd }) {
+            const [value, setValue] = useState('');
+            const handleSubmit = (e) => { e.preventDefault(); if (value.trim()) { onAdd(value.trim()); setValue(''); } };
+
+            return (
+                <form onSubmit={handleSubmit} className="relative group">
+                <input
+                    type="text"
+                    placeholder="Add item..."
+                    className="w-full pl-4 pr-10 py-3 text-sm bg-white/50 rounded-xl border border-transparent focus:bg-white focus:ring-2 focus:ring-indigo-300 focus:border-indigo-300 transition-all placeholder:text-slate-400 shadow-sm"
+                    value={value}
+                    onChange={(e) => setValue(e.target.value)}
+                />
+                <button 
+                    type="submit"
+                    disabled={!value.trim()}
+                    className="absolute right-2 top-2 p-1.5 bg-indigo-500 text-white rounded-lg opacity-0 group-hover:opacity-100 focus:opacity-100 disabled:opacity-0 transition-all shadow-md hover:scale-105"
+                >
+                    <Plus className="w-4 h-4" strokeWidth={3} />
+                </button>
+                </form>
+            );
+        }
+
+        // --- Mount Application ---
+        const root = createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
