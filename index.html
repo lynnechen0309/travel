@@ -1,0 +1,862 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pack & Go - 行李打包小幫手</title>
+    
+    <!-- 1. Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- 2. React (Development Version for better error messages) -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    
+    <!-- 3. Babel -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            -webkit-font-smoothing: antialiased;
+        }
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent; 
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1; 
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8; 
+        }
+    </style>
+</head>
+<body class="bg-slate-50">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        // --- ICON SYSTEM (Simplified & Robust) ---
+        // 統一的 SVG 容器，避免屬性錯誤
+        const SvgIcon = ({ children, className, ...props }) => (
+            <svg 
+                xmlns="http://www.w3.org/2000/svg" 
+                width="24" 
+                height="24" 
+                viewBox="0 0 24 24" 
+                fill="none" 
+                stroke="currentColor" 
+                strokeWidth="2" 
+                strokeLinecap="round" 
+                strokeLinejoin="round" 
+                className={className || ""} 
+                {...props}
+            >
+                {children}
+            </svg>
+        );
+
+        // 定義所有圖示的路徑
+        const Icons = {
+            Check: <polyline points="20 6 9 17 4 12" />,
+            Plus: <><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></>,
+            Trash2: <><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /><line x1="10" y1="11" x2="10" y2="17" /><line x1="14" y1="11" x2="14" y2="17" /></>,
+            PlaneVibe: <path d="M20.38 3.4a1.6 1.6 0 0 0-2.22 0l-1.67 1.7c-.52.53-1.63.56-3.03-.02L4.9 2a1.53 1.53 0 0 0-2.34 1.48l1.49 8.24c.09.5.39.92.83 1.18l8.9 5.3c1.4.83 1.37 1.94.85 2.46l-1.7 1.7a1.6 1.6 0 0 0 0 2.22l.53.54a.8.8 0 0 0 1.12 0l11.02-11.06a.8.8 0 0 0 0-1.12l-.53-.54Z"/>,
+            RefreshCw: <><path d="M21 2v6h-6" /><path d="M3 12a9 9 0 0 1 15-6.7L21 8" /><path d="M3 22v-6h6" /><path d="M21 12a9 9 0 0 1-15 6.7L3 16" /></>,
+            RotateCcw: <><path d="M1 4v6h6" /><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" /></>,
+            Luggage: <><path d="M6 20h0a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h0" /><path d="M8 18v-1a2 2 0 0 0-2-2" /><path d="M16 18v-1a2 2 0 0 1 2-2" /><path d="M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2" /></>,
+            X: <><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></>,
+            Edit2: <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" />,
+            Save: <><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" /><polyline points="17 21 17 13 7 13 7 21" /><polyline points="7 3 7 8 15 8" /></>,
+            AlertTriangle: <><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" /><line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" /></>,
+            Pencil: <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" />,
+            ArrowRight: <><line x1="5" y1="12" x2="19" y2="12" /><polyline points="12 5 19 12 12 19" /></>,
+            ChevronDown: <polyline points="6 9 12 15 18 9" />,
+            ChevronRight: <polyline points="9 18 15 12 9 6" />,
+            ListTodo: <><rect x="3" y="5" width="6" height="6" rx="1" /><path d="m3 17 2 2 4-4" /><path d="M13 6h8" /><path d="M13 12h8" /><path d="M13 18h8" /></>,
+            FileText: <><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /><line x1="10" y1="9" x2="8" y2="9" /></>,
+            Shirt: <path d="M20.38 3.4a1.6 1.6 0 0 0-2.22 0l-1.67 1.7c-.52.53-1.63.56-3.03-.02L4.9 2a1.53 1.53 0 0 0-2.34 1.48l1.49 8.24c.09.5.39.92.83 1.18l8.9 5.3c1.4.83 1.37 1.94.85 2.46l-1.7 1.7a1.6 1.6 0 0 0 0 2.22l.53.54a.8.8 0 0 0 1.12 0l11.02-11.06a.8.8 0 0 0 0-1.12l-.53-.54Z"/>,
+            Glasses: <><circle cx="6" cy="15" r="4" /><circle cx="18" cy="15" r="4" /><line x1="14" y1="15" x2="10" y2="15" /><line x1="2.5" y1="13" x2="5" y2="13" /><line x1="21.5" y1="13" x2="19" y2="13" /></>,
+            Footprints: <><path d="M4 16v-2.38C4 11.5 2.97 10.5 3 8c.03-2.72 1.49-6 4.5-6C9.37 2 11 3.8 11 8c0 2.85-1.67 5.71-3 8a7 7 0 0 0-2 5.62" /><path d="M12 14v-2.38c0-2.12 1.03-3.12 1-5.62-.03-2.72-1.49-6-4.5-6C6.63 0 5 1.8 5 6c0 2.85 1.67 5.71 3 8a7 7 0 0 0 2 5.62" transform="translate(8 2)" /></>,
+            Zap: <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />,
+            Sparkles: <><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z" /><path d="M5 3v4" /><path d="M9 5H5" /><path d="M3 7h4" /></>,
+            Droplets: <><path d="M7 16.3c2.2 0 4-1.83 4-4.05 0-1.16-.57-2.26-1.71-3.19S7.29 6.75 7 5.3c-.29 1.45-1.14 2.84-2.29 3.76S3 11.1 3 12.25c0 2.22 1.8 4.05 4 4.05z" /><path d="M12.56 6.6A10.97 10.97 0 0 0 14 3.02c.5 2.5 2 4.9 4 6.5s3 3.5 3 5.5a6.98 6.98 0 0 1-11.91 4.39" /></>,
+            Coffee: <><path d="M17 8h1a4 4 0 1 1 0 8h-1" /><path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z" /><line x1="6" y1="1" x2="6" y2="4" /><line x1="10" y1="1" x2="10" y2="4" /><line x1="14" y1="1" x2="14" y2="4" /></>,
+            Pill: <><path d="m10.5 20.5 10-10a4.95 4.95 0 1 0-7-7l-10 10a4.95 4.95 0 1 0 7 7Z" /><path d="m8.5 8.5 7 7" /></>,
+            Map: <><polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21" /><line x1="9" y1="3" x2="9" y2="18" /><line x1="15" y1="6" x2="15" y2="21" /></>
+        };
+
+        // --- DATA ---
+        const DEFAULT_DATA = [
+          {
+            id: 'docs',
+            title: '證件票券',
+            isCollapsed: false,
+            items: [
+              { id: 'd1', name: '護照', checked: false },
+              { id: 'd2', name: '簽證', checked: false },
+              { id: 'd3', name: '信用卡', checked: false },
+              { id: 'd4', name: '國際駕照/台灣駕照', checked: false },
+              { id: 'd5', name: '機票證明', checked: false },
+              { id: 'd6', name: '外幣/台幣/旅支', checked: false },
+              { id: 'd7', name: '2吋照片', checked: false },
+              { id: 'd8', name: '筆', checked: false },
+            ]
+          },
+          {
+            id: 'clothes',
+            title: '衣物穿搭',
+            isCollapsed: false,
+            items: [
+              { id: 'c1', name: '內衣褲', checked: false },
+              { id: 'c2', name: '睡衣', checked: false },
+              { id: 'c3', name: '襪子', checked: false },
+              { id: 'c4', name: '外套', checked: false },
+              { id: 'c5', name: '外出服', checked: false },
+            ]
+          },
+          {
+            id: 'accessories',
+            title: '時尚配件',
+            isCollapsed: false,
+            items: [
+              { id: 'a1', name: '太陽眼鏡', checked: false },
+              { id: 'a2', name: '帽子', checked: false },
+              { id: 'a3', name: '髮飾', checked: false },
+              { id: 'a4', name: '飾品', checked: false },
+              { id: 'a5', name: '泳衣', checked: false },
+              { id: 'a6', name: '圍巾/手套', checked: false },
+            ]
+          },
+          {
+            id: 'shoes',
+            title: '鞋履',
+            isCollapsed: false,
+            items: [
+              { id: 's1', name: '運動鞋', checked: false },
+              { id: 's2', name: '休閒鞋', checked: false },
+              { id: 's3', name: '拖鞋', checked: false },
+              { id: 's4', name: '靴子', checked: false },
+            ]
+          },
+          {
+            id: 'electronics',
+            title: '3C 電子',
+            isCollapsed: false,
+            items: [
+              { id: 'e1', name: '耳機', checked: false },
+              { id: 'e2', name: '相機/充電器/記憶卡', checked: false },
+              { id: 'e3', name: '手機充電器', checked: false },
+              { id: 'e4', name: '行動電源/線/手錶充電線', checked: false },
+              { id: 'e5', name: '萬國插頭', checked: false },
+              { id: 'e6', name: '自拍棒', checked: false },
+              { id: 'e7', name: '延長線', checked: false },
+            ]
+          },
+          {
+            id: 'toiletries',
+            title: '盥洗用品',
+            isCollapsed: false,
+            items: [
+              { id: 't1', name: '牙線/牙刷/牙膏', checked: false },
+              { id: 't2', name: '洗面乳/洗護髮/沐浴乳/卸妝', checked: false },
+              { id: 't3', name: '旅行吹風機', checked: false },
+              { id: 't4', name: '梳子', checked: false },
+              { id: 't5', name: '毛巾', checked: false },
+              { id: 't6', name: '洗臉巾', checked: false },
+            ]
+          },
+          {
+            id: 'skincare',
+            title: '保養化妝',
+            isCollapsed: false,
+            items: [
+              { id: 'sk1', name: '精華液/乳液/護唇膏', checked: false },
+              { id: 'sk2', name: '面膜', checked: false },
+              { id: 'sk3', name: '美容儀', checked: false },
+              { id: 'sk4', name: '棉花棒/化妝棉', checked: false },
+              { id: 'sk5', name: '化妝品', checked: false },
+              { id: 'sk6', name: '香水', checked: false },
+              { id: 'sk7', name: '電捲棒', checked: false },
+            ]
+          },
+          {
+            id: 'daily',
+            title: '生活雜物',
+            isCollapsed: false,
+            items: [
+              { id: 'da1', name: '眼鏡/隱形眼鏡/眼鏡盒', checked: false },
+              { id: 'da2', name: '面紙/溼紙巾', checked: false },
+              { id: 'da3', name: '酒精', checked: false },
+              { id: 'da4', name: '口罩', checked: false },
+              { id: 'da5', name: '雨傘', checked: false },
+              { id: 'da6', name: '防曬乳', checked: false },
+              { id: 'da7', name: '衛生棉', checked: false },
+              { id: 'da8', name: '筆', checked: false },
+              { id: 'da9', name: '小剪刀', checked: false },
+              { id: 'da10', name: '香氛', checked: false },
+              { id: 'da11', name: '水瓶', checked: false },
+            ]
+          },
+          {
+            id: 'medicine',
+            title: '隨身藥物',
+            isCollapsed: false,
+            items: [
+              { id: 'm1', name: '止痛藥', checked: false },
+              { id: 'm2', name: '暈車藥', checked: false },
+              { id: 'm3', name: '感冒藥', checked: false },
+              { id: 'm4', name: '腸胃藥', checked: false },
+              { id: 'm5', name: '蚊蟲藥', checked: false },
+              { id: 'm6', name: 'Ok繃', checked: false },
+            ]
+          }
+        ];
+
+        // --- COMPONENTS ---
+        function StatBox({ label, value, highlight = false }) {
+          return (
+            <div className={`
+               p-4 rounded-2xl text-center backdrop-blur-sm border border-white/20
+               ${highlight ? 'bg-white/20 shadow-lg' : 'bg-white/10'}
+            `}>
+               <div className={`text-3xl font-black ${highlight ? 'text-white' : 'text-indigo-100'}`}>{value}</div>
+               <div className="text-xs text-indigo-200 uppercase tracking-wide font-bold mt-1">{label}</div>
+            </div>
+          );
+        }
+
+        function AddItemInput({ onAdd }) {
+          const [value, setValue] = useState('');
+          const handleSubmit = (e) => { e.preventDefault(); if (value.trim()) { onAdd(value.trim()); setValue(''); } };
+
+          return (
+            <form onSubmit={handleSubmit} className="relative group">
+              <input
+                type="text"
+                placeholder="Add item..."
+                className="w-full pl-4 pr-10 py-3 text-sm bg-white/50 rounded-xl border border-transparent focus:bg-white focus:ring-2 focus:ring-indigo-300 focus:border-indigo-300 transition-all placeholder:text-slate-400 shadow-sm"
+                value={value}
+                onChange={(e) => setValue(e.target.value)}
+              />
+              <button 
+                type="submit"
+                disabled={!value.trim()}
+                className="absolute right-2 top-2 p-1.5 bg-indigo-500 text-white rounded-lg opacity-0 group-hover:opacity-100 focus:opacity-100 disabled:opacity-0 transition-all shadow-md hover:scale-105"
+              >
+                <SvgIcon className="w-4 h-4">{Icons.Plus}</SvgIcon>
+              </button>
+            </form>
+          );
+        }
+
+        // --- MAIN APP ---
+        function App() {
+          const [categories, setCategories] = useState(() => {
+            try {
+              const saved = localStorage.getItem('packing-list-v1');
+              if (saved) {
+                  const parsed = JSON.parse(saved);
+                  // 簡單驗證資料結構是否為陣列，防止崩潰
+                  if (Array.isArray(parsed)) return parsed;
+              }
+              return DEFAULT_DATA;
+            } catch (e) {
+              console.error("Error loading data", e);
+              return DEFAULT_DATA;
+            }
+          });
+
+          const [newCatName, setNewCatName] = useState('');
+          const [showAddCat, setShowAddCat] = useState(false);
+          const [editingCatId, setEditingCatId] = useState(null);
+          const [editCatName, setEditCatName] = useState('');
+          const [itemEditConfig, setItemEditConfig] = useState(null); 
+          const [modalConfig, setModalConfig] = useState(null); 
+          const [showStats, setShowStats] = useState(false);
+
+          useEffect(() => {
+            try {
+                localStorage.setItem('packing-list-v1', JSON.stringify(categories));
+            } catch(e) {
+                console.error("Save failed", e);
+            }
+          }, [categories]);
+
+          const getStats = () => {
+            let total = 0;
+            let checked = 0;
+            const remainingItems = [];
+
+            categories.forEach(cat => {
+              cat.items.forEach(item => {
+                total++;
+                if (item.checked) {
+                  checked++;
+                } else {
+                  remainingItems.push({ ...item, catTitle: cat.title });
+                }
+              });
+            });
+            
+            return {
+              total,
+              checked,
+              progress: total === 0 ? 0 : Math.round((checked / total) * 100),
+              remainingItems
+            };
+          };
+
+          const stats = getStats();
+
+          // 安全的進度條寬度計算
+          const progressStyle = { width: (stats.progress || 0) + '%' };
+          const planeStyle = { left: (stats.progress || 0) + '%' };
+
+          const toggleCheck = (catId, itemId) => {
+            setCategories(prev => prev.map(cat => {
+              if (cat.id !== catId) return cat;
+              return {
+                ...cat,
+                items: cat.items.map(item => 
+                  item.id === itemId ? { ...item, checked: !item.checked } : item
+                )
+              };
+            }));
+          };
+
+          const addItem = (catId, itemName) => {
+            if (!itemName || !itemName.trim()) return;
+            setCategories(prev => prev.map(cat => {
+              if (cat.id !== catId) return cat;
+              return {
+                ...cat,
+                items: [...cat.items, { id: Date.now().toString(), name: itemName.trim(), checked: false }]
+              };
+            }));
+          };
+
+          const deleteItem = (catId, itemId) => {
+            setCategories(prev => prev.map(cat => {
+              if (cat.id !== catId) return cat;
+              return {
+                ...cat,
+                items: cat.items.filter(item => item.id !== itemId)
+              };
+            }));
+          };
+
+          const openEditItem = (catId, item) => {
+            setItemEditConfig({
+              catId,
+              item,
+              newName: item.name,
+              newCatId: catId
+            });
+          };
+
+          const saveEditItem = () => {
+            if (!itemEditConfig || !itemEditConfig.newName.trim()) return;
+            const { catId, item, newName, newCatId } = itemEditConfig;
+            setCategories(prev => {
+              if (catId === newCatId) {
+                return prev.map(cat => {
+                  if (cat.id !== catId) return cat;
+                  return { ...cat, items: cat.items.map(i => i.id === item.id ? { ...i, name: newName } : i) };
+                });
+              } else {
+                const itemToMove = { ...item, name: newName };
+                return prev.map(cat => {
+                  if (cat.id === catId) return { ...cat, items: cat.items.filter(i => i.id !== item.id) };
+                  if (cat.id === newCatId) return { ...cat, items: [...cat.items, itemToMove] };
+                  return cat;
+                });
+              }
+            });
+            setItemEditConfig(null);
+          };
+
+          const addCategory = () => {
+            if (!newCatName.trim()) return;
+            setCategories(prev => [...prev, { id: Date.now().toString(), title: newCatName.trim(), items: [], isCollapsed: false }]);
+            setNewCatName('');
+            setShowAddCat(false);
+          };
+
+          const requestDeleteCategory = (catId) => {
+            setModalConfig({ type: 'deleteCat', data: catId, title: '刪除分類', message: '確定要刪除整個分類嗎？此動作無法復原。' });
+          };
+
+          const executeDeleteCategory = (catId) => {
+            setCategories(prev => prev.filter(cat => cat.id !== catId));
+            setModalConfig(null);
+          };
+
+          const startEditCategory = (cat, e) => {
+            e.stopPropagation();
+            setEditingCatId(cat.id);
+            setEditCatName(cat.title);
+          };
+
+          const saveEditCategory = (catId) => {
+            if (!editCatName.trim()) return;
+            setCategories(prev => prev.map(cat => cat.id === catId ? { ...cat, title: editCatName.trim() } : cat));
+            setEditingCatId(null);
+          };
+
+          const toggleCollapse = (catId) => {
+            if (editingCatId === catId) return;
+            setCategories(prev => prev.map(cat => cat.id === catId ? { ...cat, isCollapsed: !cat.isCollapsed } : cat));
+          };
+
+          const requestResetChecks = () => setModalConfig({ type: 'reset', title: '清除所有勾選', message: '確定要清除所有項目的勾選狀態嗎？' });
+          const executeResetChecks = () => {
+            setCategories(prev => prev.map(cat => ({ ...cat, items: cat.items.map(item => ({ ...item, checked: false })) })));
+            setModalConfig(null);
+          };
+
+          const requestRestoreDefault = () => setModalConfig({ type: 'restore', title: '恢復預設清單', message: '確定要重置回預設清單嗎？所有的自訂項目將會消失。' });
+          const executeRestoreDefault = () => {
+            setCategories(DEFAULT_DATA);
+            setModalConfig(null);
+          };
+
+          // Icon Mapping Helper
+          const getCategoryIcon = (id) => {
+              const map = {
+                  'docs': Icons.FileText,
+                  'clothes': Icons.Shirt,
+                  'accessories': Icons.Glasses,
+                  'shoes': Icons.Footprints,
+                  'electronics': Icons.Zap,
+                  'toiletries': Icons.Sparkles,
+                  'skincare': Icons.Droplets,
+                  'daily': Icons.Coffee,
+                  'medicine': Icons.Pill
+              };
+              return map[id] || Icons.Map;
+          };
+
+          return (
+            <div className="min-h-screen bg-[conic-gradient(at_top_right,_var(--tw-gradient-stops))] from-indigo-100 via-slate-100 to-rose-100 text-slate-700 pb-32">
+              
+              {/* Header */}
+              <header className="sticky top-0 z-40 bg-white/70 backdrop-blur-xl border-b border-white/50 shadow-sm">
+                <div className="max-w-6xl mx-auto px-4 py-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-3">
+                      <div className="bg-gradient-to-tr from-indigo-500 to-purple-500 p-2.5 rounded-2xl shadow-lg shadow-indigo-500/30 rotate-3 transition-transform hover:rotate-6">
+                        <SvgIcon className="w-6 h-6 text-white" strokeWidth="2.5">{Icons.PlaneVibe}</SvgIcon>
+                      </div>
+                      <div>
+                        <h1 className="text-2xl font-black bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 to-purple-600 tracking-tight">
+                          Pack & Go
+                        </h1>
+                        <p className="text-xs text-slate-500 font-medium tracking-wide uppercase">Travel Checklist</p>
+                      </div>
+                    </div>
+                    
+                    <div className="flex gap-2">
+                       <button 
+                        onClick={requestResetChecks}
+                        className="p-2.5 text-slate-500 hover:text-indigo-600 hover:bg-white/80 rounded-xl transition-all border border-transparent hover:border-indigo-100 hover:shadow-sm"
+                        title="清除勾選"
+                       >
+                        <SvgIcon className="w-5 h-5">{Icons.RefreshCw}</SvgIcon>
+                      </button>
+                      <button 
+                        onClick={requestRestoreDefault}
+                        className="p-2.5 text-slate-500 hover:text-rose-500 hover:bg-white/80 rounded-xl transition-all border border-transparent hover:border-rose-100 hover:shadow-sm"
+                        title="恢復預設清單"
+                      >
+                        <SvgIcon className="w-5 h-5">{Icons.RotateCcw}</SvgIcon>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Progress Bar */}
+                  <div className="relative pt-2 px-1">
+                     <div className="flex justify-between text-xs font-bold text-slate-400 mb-1.5 uppercase tracking-wider">
+                       <span>Ready</span>
+                       <span>Set</span>
+                       <span>Go</span>
+                     </div>
+                     <div className="relative h-3 bg-slate-200/60 rounded-full overflow-hidden shadow-inner">
+                        <div 
+                          style={progressStyle} 
+                          className="absolute top-0 left-0 h-full bg-gradient-to-r from-indigo-400 via-purple-400 to-rose-400 transition-all duration-700 ease-out rounded-full"
+                        >
+                          <div className="absolute top-0 right-0 bottom-0 left-0 bg-gradient-to-b from-white/30 to-transparent"></div>
+                        </div>
+                     </div>
+                     <div 
+                       className="absolute top-3.5 w-6 h-6 -ml-3 transition-all duration-700 ease-out text-purple-600 drop-shadow-md z-10 pointer-events-none"
+                       style={planeStyle}
+                     >
+                       <SvgIcon className="w-full h-full rotate-45 fill-white">{Icons.PlaneVibe}</SvgIcon>
+                     </div>
+                  </div>
+                </div>
+              </header>
+
+              <main className="max-w-6xl mx-auto px-4 py-8">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {categories.map((category) => {
+                    const catIcon = getCategoryIcon(category.id);
+                    const catProgress = category.items.length ? (category.items.filter(i => i.checked).length / category.items.length) * 100 : 0;
+                    const catProgressStyle = { width: catProgress + '%' };
+
+                    return (
+                      <div 
+                        key={category.id} 
+                        className={`
+                          group bg-white/60 backdrop-blur-md rounded-3xl border border-white/60 shadow-lg shadow-indigo-100/50 
+                          transition-all duration-300 hover:shadow-xl hover:shadow-indigo-200/60 hover:-translate-y-1 flex flex-col overflow-hidden
+                          ${category.isCollapsed ? 'h-auto' : 'h-full'}
+                        `}
+                      >
+                        {/* Card Header */}
+                        <div 
+                          onClick={() => toggleCollapse(category.id)}
+                          className="p-5 flex justify-between items-center cursor-pointer select-none bg-gradient-to-b from-white/50 to-transparent border-b border-white/40"
+                        >
+                          {editingCatId === category.id ? (
+                             <div className="flex items-center gap-2 w-full" onClick={(e) => e.stopPropagation()}>
+                               <input 
+                                  type="text" 
+                                  value={editCatName} 
+                                  onChange={(e) => setEditCatName(e.target.value)}
+                                  className="flex-1 px-3 py-2 text-base font-bold text-slate-800 bg-white/80 border border-indigo-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-400 shadow-inner"
+                                  autoFocus
+                                  onKeyDown={(e) => e.key === 'Enter' && saveEditCategory(category.id)}
+                               />
+                               <button onClick={() => saveEditCategory(category.id)} className="text-green-600 bg-green-100 p-2 rounded-xl hover:bg-green-200 transition-colors">
+                                 <SvgIcon className="w-4 h-4">{Icons.Save}</SvgIcon>
+                               </button>
+                             </div>
+                          ) : (
+                            <>
+                              <div className="flex items-center gap-3 overflow-hidden">
+                                <div className={`
+                                  p-2.5 rounded-2xl shadow-sm transition-colors duration-300
+                                  ${category.items.length > 0 && category.items.every(i => i.checked) 
+                                    ? 'bg-gradient-to-br from-green-400 to-emerald-500 text-white shadow-green-200' 
+                                    : 'bg-white text-indigo-500 shadow-indigo-100'}
+                                `}>
+                                  <SvgIcon className="w-5 h-5">{catIcon}</SvgIcon>
+                                </div>
+                                <div>
+                                  <h3 className="font-bold text-slate-800 text-lg leading-tight">
+                                    {category.title}
+                                  </h3>
+                                  <div className="flex items-center gap-1.5 mt-0.5">
+                                     <div className="h-1.5 w-16 bg-slate-200 rounded-full overflow-hidden">
+                                       <div 
+                                         className="h-full bg-indigo-400 rounded-full transition-all duration-500"
+                                         style={catProgressStyle}
+                                       ></div>
+                                     </div>
+                                     <span className="text-[10px] font-bold text-slate-400">
+                                       {category.items.filter(i => i.checked).length}/{category.items.length}
+                                     </span>
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="flex items-center gap-1">
+                                <div className="flex gap-1 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-all" onClick={(e) => e.stopPropagation()}>
+                                  <button 
+                                    onClick={(e) => startEditCategory(category, e)}
+                                    className="text-slate-400 hover:text-indigo-600 p-2 hover:bg-indigo-50 rounded-xl transition-colors"
+                                  >
+                                    <SvgIcon className="w-4 h-4">{Icons.Edit2}</SvgIcon>
+                                  </button>
+                                  <button 
+                                    onClick={() => requestDeleteCategory(category.id)}
+                                    className="text-slate-400 hover:text-rose-500 p-2 hover:bg-rose-50 rounded-xl transition-colors"
+                                  >
+                                    <SvgIcon className="w-4 h-4">{Icons.Trash2}</SvgIcon>
+                                  </button>
+                                </div>
+                                <div className="w-px h-4 bg-slate-200 mx-1"></div>
+                                <div className="text-slate-300 transition-transform duration-300">
+                                   <SvgIcon className="w-5 h-5">{category.isCollapsed ? Icons.ChevronRight : Icons.ChevronDown}</SvgIcon>
+                                </div>
+                              </div>
+                            </>
+                          )}
+                        </div>
+
+                        {/* List Items */}
+                        {!category.isCollapsed && (
+                          <>
+                            <div className="p-3 flex-1 bg-white/30 backdrop-blur-sm">
+                              {category.items.length === 0 ? (
+                                <div className="text-center py-8 text-slate-400/80 text-sm font-medium italic flex flex-col items-center gap-2">
+                                   <div className="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center">
+                                      <SvgIcon className="w-5 h-5 text-slate-300">{Icons.Sparkles}</SvgIcon>
+                                   </div>
+                                   空空如也，加點東西吧？
+                                </div>
+                              ) : (
+                                <ul className="space-y-2">
+                                  {category.items.map((item) => (
+                                    <li 
+                                      key={item.id} 
+                                      className={`
+                                        group relative flex items-center justify-between p-3 rounded-xl cursor-pointer transition-all duration-300 select-none border
+                                        ${item.checked 
+                                          ? 'bg-indigo-50/60 border-indigo-100 shadow-inner' 
+                                          : 'bg-white border-transparent hover:border-indigo-100 hover:shadow-md hover:shadow-indigo-100/40 hover:-translate-y-0.5'}
+                                      `}
+                                      onClick={() => toggleCheck(category.id, item.id)}
+                                    >
+                                      <div className="flex items-center gap-3 overflow-hidden flex-1 z-10">
+                                        <div className={`
+                                          w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all duration-300 shrink-0
+                                          ${item.checked 
+                                            ? 'bg-gradient-to-tr from-indigo-500 to-purple-500 border-transparent scale-100 shadow-sm shadow-indigo-300' 
+                                            : 'border-slate-300 bg-white group-hover:border-indigo-300 scale-95 group-hover:scale-100'}
+                                        `}>
+                                          <SvgIcon className={`w-3.5 h-3.5 text-white transition-all duration-300 ${item.checked ? 'opacity-100 scale-100' : 'opacity-0 scale-50'}`} strokeWidth="3">{Icons.Check}</SvgIcon>
+                                        </div>
+                                        <span className={`text-[15px] font-medium truncate transition-all duration-300 ${item.checked ? 'text-slate-400 line-through decoration-2 decoration-indigo-200' : 'text-slate-700'}`}>
+                                          {item.name}
+                                        </span>
+                                      </div>
+                                      
+                                      <div className="flex items-center gap-1 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-all z-20">
+                                          <button 
+                                          onClick={(e) => {
+                                              e.stopPropagation();
+                                              openEditItem(category.id, item);
+                                          }}
+                                          className="p-1.5 text-slate-400 hover:text-indigo-600 rounded-lg hover:bg-indigo-50 transition-all shrink-0"
+                                          title="編輯物品"
+                                          >
+                                          <SvgIcon className="w-4 h-4">{Icons.Pencil}</SvgIcon>
+                                          </button>
+                                          <button 
+                                          onClick={(e) => {
+                                              e.stopPropagation();
+                                              deleteItem(category.id, item.id);
+                                          }}
+                                          className="p-1.5 text-slate-400 hover:text-rose-500 rounded-lg hover:bg-rose-50 transition-all shrink-0"
+                                          title="刪除物品"
+                                          >
+                                          <SvgIcon className="w-4 h-4">{Icons.X}</SvgIcon>
+                                          </button>
+                                      </div>
+                                    </li>
+                                  ))}
+                                </ul>
+                              )}
+                            </div>
+
+                            <div className="p-3 bg-white/40 border-t border-white/50">
+                              <AddItemInput onAdd={(name) => addItem(category.id, name)} />
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    );
+                  })}
+
+                  {/* Add Category Button */}
+                  <button
+                    className="min-h-[140px] rounded-3xl border-3 border-dashed border-indigo-200/60 bg-white/30 hover:bg-white/60 flex flex-col items-center justify-center p-6 text-indigo-300 hover:text-indigo-500 hover:border-indigo-300 hover:shadow-lg transition-all duration-300 group w-full"
+                    onClick={() => setShowAddCat(true)}
+                  >
+                     <div className="bg-white/80 p-3 rounded-full mb-3 shadow-sm group-hover:scale-110 transition-transform duration-300">
+                       <SvgIcon className="w-6 h-6">{Icons.Plus}</SvgIcon>
+                     </div>
+                     <span className="font-bold text-lg">新增分類</span>
+                     <span className="text-xs mt-1 opacity-70">Create New Collection</span>
+                  </button>
+                </div>
+              </main>
+
+              {/* Floating Action Button */}
+              <div className="fixed bottom-8 right-6 z-30 perspective-1000">
+                <button 
+                  onClick={() => setShowStats(true)}
+                  className="relative bg-gradient-to-r from-indigo-600 to-purple-600 text-white w-16 h-16 rounded-full shadow-2xl shadow-indigo-400/60 hover:-translate-y-2 active:scale-95 transition-all duration-300 flex items-center justify-center group"
+                  title="查看打包進度統計"
+                >
+                   <SvgIcon className="w-7 h-7 group-hover:rotate-6 transition-transform duration-300" strokeWidth="1.5">{Icons.Luggage}</SvgIcon>
+                   {stats.remainingItems.length > 0 && (
+                     <span className="absolute -top-1 -right-1 bg-rose-500 text-white text-[11px] font-bold min-w-[22px] h-[22px] flex items-center justify-center rounded-full border-2 border-white animate-bounce shadow-md">
+                       {stats.remainingItems.length}
+                     </span>
+                   )}
+                   <span className="absolute inset-0 rounded-full border border-indigo-400 opacity-0 group-hover:animate-ping"></span>
+                </button>
+              </div>
+
+              {/* --- Modals --- */}
+
+              {/* Stats Modal */}
+              {showStats && (
+                <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                  <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in duration-200 flex flex-col max-h-[85vh]">
+                    
+                    <div className="p-6 bg-gradient-to-r from-indigo-500 to-sky-500 text-white">
+                      <div className="flex justify-between items-start mb-4">
+                         <div>
+                           <h2 className="text-2xl font-bold flex items-center gap-2">
+                             <SvgIcon className="w-6 h-6">{Icons.Luggage}</SvgIcon> 打包儀表板
+                           </h2>
+                           <p className="text-indigo-100 text-sm mt-1">Ready to go?</p>
+                         </div>
+                         <button onClick={() => setShowStats(false)} className="bg-white/20 hover:bg-white/30 p-2 rounded-full transition-colors">
+                           <SvgIcon className="w-5 h-5">{Icons.X}</SvgIcon>
+                         </button>
+                      </div>
+
+                      <div className="grid grid-cols-3 gap-3">
+                        <StatBox label="總物品" value={stats.total} />
+                        <StatBox label="已打包" value={stats.checked} />
+                        <StatBox label="剩餘" value={stats.remainingItems.length} highlight />
+                      </div>
+                    </div>
+
+                    <div className="flex-1 overflow-y-auto p-4 bg-slate-50">
+                      {stats.remainingItems.length === 0 ? (
+                         <div className="h-full flex flex-col items-center justify-center text-center p-8">
+                            <div className="w-20 h-20 bg-green-100 text-green-500 rounded-full flex items-center justify-center mb-4 text-4xl">
+                              🎉
+                            </div>
+                            <h3 className="text-xl font-bold text-slate-800 mb-2">恭喜！全部打包完成</h3>
+                            <p className="text-slate-500">準備好出發去旅行吧！Have a nice trip!</p>
+                         </div>
+                      ) : (
+                         <>
+                           <h4 className="text-sm font-bold text-slate-500 uppercase mb-3 flex items-center gap-2">
+                             <SvgIcon className="w-4 h-4">{Icons.ListTodo}</SvgIcon> 尚未打包物品
+                           </h4>
+                           <div className="space-y-2">
+                             {stats.remainingItems.map((item) => (
+                               <div 
+                                 key={item.id} 
+                                 onClick={() => {
+                                   toggleCheck(categories.find(c => c.title === item.catTitle).id, item.id);
+                                 }}
+                                 className="flex items-center justify-between p-3 bg-white rounded-xl border border-slate-100 shadow-sm cursor-pointer hover:border-sky-300 transition-all group"
+                               >
+                                 <div className="flex items-center gap-3">
+                                    <div className="w-2 h-2 rounded-full bg-rose-400"></div>
+                                    <div>
+                                       <div className="font-medium text-slate-700">{item.name}</div>
+                                       <div className="text-xs text-slate-400">{item.catTitle}</div>
+                                    </div>
+                                 </div>
+                                 <div className="w-6 h-6 rounded-full border-2 border-slate-200 flex items-center justify-center group-hover:border-sky-400">
+                                    <SvgIcon className="w-3 h-3 text-sky-500 opacity-0 group-hover:opacity-100">{Icons.Check}</SvgIcon>
+                                 </div>
+                               </div>
+                             ))}
+                           </div>
+                         </>
+                      )}
+                    </div>
+                    
+                    <div className="p-4 border-t border-slate-100 bg-white text-center">
+                      <button 
+                        onClick={() => setShowStats(false)}
+                        className="w-full py-3 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold rounded-xl transition-colors"
+                      >
+                        關閉
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Other Modals */}
+              {[itemEditConfig, modalConfig, showAddCat].some(Boolean) && !showStats && (
+                <div className="fixed inset-0 bg-slate-900/30 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                   {showAddCat && (
+                     <div className="bg-white/95 backdrop-blur-xl rounded-3xl shadow-2xl p-8 w-full max-w-sm animate-in fade-in zoom-in duration-200 border border-white/50">
+                        <h3 className="text-xl font-bold text-slate-800 mb-6 flex items-center gap-2">
+                          <SvgIcon className="w-6 h-6 text-indigo-500">{Icons.Plus}</SvgIcon> 新增分類
+                        </h3>
+                        <input
+                          type="text"
+                          placeholder="例如：攝影器材"
+                          className="w-full px-5 py-4 rounded-2xl bg-slate-50 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:bg-white text-lg mb-6 shadow-inner"
+                          value={newCatName}
+                          onChange={(e) => setNewCatName(e.target.value)}
+                          autoFocus
+                          onKeyDown={(e) => {
+                            if(e.key === 'Enter') addCategory();
+                            if(e.key === 'Escape') setShowAddCat(false);
+                          }}
+                        />
+                        <div className="flex gap-3">
+                          <button onClick={() => setShowAddCat(false)} className="flex-1 py-3 rounded-xl text-slate-500 hover:bg-slate-100 font-bold transition-colors">取消</button>
+                          <button onClick={addCategory} className="flex-1 py-3 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white font-bold shadow-lg shadow-indigo-200 transition-all transform hover:-translate-y-0.5">建立</button>
+                        </div>
+                     </div>
+                   )}
+
+                   {itemEditConfig && (
+                     <div className="bg-white/95 backdrop-blur-xl rounded-3xl shadow-2xl p-8 w-full max-w-sm animate-in fade-in zoom-in duration-200 border border-white/50">
+                       <div className="flex justify-between items-center mb-6">
+                         <h3 className="text-xl font-bold text-slate-800">編輯物品</h3>
+                         <button onClick={() => setItemEditConfig(null)} className="p-2 hover:bg-slate-100 rounded-full"><SvgIcon className="w-5 h-5 text-slate-400">{Icons.X}</SvgIcon></button>
+                       </div>
+                       <div className="space-y-4">
+                          <div>
+                            <label className="text-xs font-bold text-slate-400 uppercase tracking-wider ml-1 mb-1 block">Name</label>
+                            <input type="text" value={itemEditConfig.newName} onChange={(e) => setItemEditConfig(prev => ({...prev, newName: e.target.value}))} className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-400 bg-slate-50 font-medium" />
+                          </div>
+                          <div>
+                            <label className="text-xs font-bold text-slate-400 uppercase tracking-wider ml-1 mb-1 block">Category</label>
+                            <div className="relative">
+                              <select value={itemEditConfig.newCatId} onChange={(e) => setItemEditConfig(prev => ({...prev, newCatId: e.target.value}))} className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-400 bg-slate-50 font-medium appearance-none text-slate-700">
+                                {categories.map(cat => <option key={cat.id} value={cat.id}>{cat.title}</option>)}
+                              </select>
+                              <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                                <SvgIcon className="w-4 h-4">{Icons.ArrowRight}</SvgIcon>
+                              </div>
+                            </div>
+                          </div>
+                       </div>
+                       <button onClick={saveEditItem} disabled={!itemEditConfig.newName.trim()} className="w-full mt-6 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold shadow-lg shadow-indigo-200 disabled:opacity-50 transition-all">儲存變更</button>
+                     </div>
+                   )}
+
+                   {modalConfig && (
+                     <div className="bg-white/95 backdrop-blur-xl rounded-3xl shadow-2xl p-8 w-full max-w-sm animate-in fade-in zoom-in duration-200 border border-white/50 text-center">
+                       <div className="w-16 h-16 bg-rose-100 text-rose-500 rounded-full flex items-center justify-center mx-auto mb-5 shadow-inner">
+                         <SvgIcon className="w-8 h-8" strokeWidth="2.5">{Icons.AlertTriangle}</SvgIcon>
+                       </div>
+                       <h3 className="text-xl font-bold text-slate-800 mb-2">{modalConfig.title}</h3>
+                       <p className="text-slate-500 mb-6 leading-relaxed">{modalConfig.message}</p>
+                       <div className="flex gap-3">
+                          <button onClick={() => setModalConfig(null)} className="flex-1 py-3 rounded-xl text-slate-500 hover:bg-slate-100 font-bold transition-colors">取消</button>
+                          <button onClick={() => {
+                            if (modalConfig.type === 'deleteCat') executeDeleteCategory(modalConfig.data);
+                            if (modalConfig.type === 'reset') executeResetChecks();
+                            if (modalConfig.type === 'restore') executeRestoreDefault();
+                          }} className="flex-1 py-3 rounded-xl bg-rose-500 hover:bg-rose-600 text-white font-bold shadow-lg shadow-rose-200 transition-all">確認執行</button>
+                       </div>
+                     </div>
+                   )}
+                </div>
+              )}
+
+            </div>
+          );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
